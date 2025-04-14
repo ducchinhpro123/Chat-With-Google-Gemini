@@ -20,11 +20,16 @@ async function callPerplexity(prompt) {
   const url = 'https://api.perplexity.ai/chat/completions';
 
   const data = {
-    model: 'sonar-reasoning',
+    model: 'sonar',
     messages: [
       {
         role: 'system',
-        content: 'Be precise and concise. Always put the newest news up to date first.'
+        content: `
+        Bạn là một trợ lý AI siêu thân thiện và hữu ích. Hãy luôn trả lời bằng tiếng Việt, dùng giọng điệu vui vẻ, gần gũi, và hiện đại. 
+        - Chỉ trả lời khi câu hỏi của người dùng rõ ràng, có nội dung cụ thể.
+        - Nếu người dùng chỉ chat linh tinh hoặc không hỏi gì rõ ràng, nhẹ nhàng nhắc họ đưa ra câu hỏi cụ thể hơn.
+        - Câu trả lời phải ngắn gọn, dễ hiểu, và đúng trọng tâm.
+      `
       },
       {
         role: 'user',
@@ -87,20 +92,36 @@ aiRouter.post("/generate", async (req, res) => {
     summary = readableBody.choices[0].message.content;
   }
 
-  // let systemInstruction = "You"
-  let systemInstruction = "Bạn ơi, nhiệm vụ của bạn là trở thành người bạn tâm tình, luôn kề bên và giúp đỡ nha. Luôn trả lời bằng tiếng Việt, dùng markdown cho đẹp nè. Hãy nói chuyện thật tình cảm, mùi mẫn, như đang tâm sự với người bạn thân thiết nhất vậy đó. Miễn là bạn thực sự giúp được người ta và giữ sự chân thành nhé.";
+  let systemInstruction = `
+    Bạn là một trợ lý AI hữu ích và thân thiện.
+
+    Hãy luôn trả lời bằng tiếng Việt trong mọi tình huống.
+    Không được sử dụng bất kỳ ngôn ngữ nào khác ngoài tiếng Việt, ngay cả khi người dùng hỏi bằng ngôn ngữ khác.
+
+    Hãy giữ giọng điệu:
+    - Thân thiện và gần gũi, sử dụng ngôn ngữ đời thường
+    - Tích cực và vui vẻ, luôn đưa ra lời khuyên tích cực
+    - Sành điệu và hiện đại, sử dụng một số từ ngữ trẻ trung khi phù hợp
+    - Luôn xưng hô là "mình" và gọi người dùng là "bạn"
+
+    Hãy làm cho câu trả lời ngắn gọn, dễ hiểu và hữu ích.
+`;
 
   if (summary) {
-    systemInstruction = systemInstruction.concat(`\n\nBạn có thể dùng nguồn này để làm giàu thêm câu trả lời của bạn, lưu ý chỉ khi nào người dùng hỏi về câu hỏi nào đó mà cần thông tin thôi, còn không thì bạn không càn tham khảo nguồn này nhé: ${summary}`);
+    systemInstruction += `\n\nĐây là prompt của nguời dùng: "${prompt}"`;
+    systemInstruction += `\n Và đây là câu trả lời này đến từ một AI khác, có thể không liên quan lắm đến lịch sử của cuộc trò chuyện nhưng bạn có thể dùng nguồn này để làm giàu thêm câu trả lời của bạn: "${summary}"`;
 
-    if (citations) {
-      systemInstruction = systemInstruction.concat(`\n\n:Và đây là citations được trả về: ${citations.join(', ')}. Bạn nhớ format lại markdown và trả lời lại cho người dùng nhé!`);
+    if (citations && citations.length > 0) {
+      const formattedCitations = citations.map(c => `* ${c}`).join('\n');
+      systemInstruction += `\n\nNguồn tham khảo:\n${formattedCitations}\nHãy tích hợp các nguồn này vào câu trả lời một cách tự nhiên nhé!`;
     }
+
+    systemInstruction += `\n\nNếu như prompt của người dùng chỉ là chat chit bình thường thì không cần phải tham khảo các thông tin trên. Hãy đưa ra citations khi cần thiết dưới dạng markdown để đảm bảo câu trả lời mang tính xác thực và đáng tin cậy.`;
   }
 
   console.log(systemInstruction);
 
-  const engineerPrompt = `${systemInstruction}\n\nUser: ${prompt}`;
+  // const engineerPrompt = `System: ${systemInstruction}\n\nUser: ${prompt}`;
 
   let history = conversationHistories.get(sessionId) || []; // Init []
 
@@ -114,7 +135,7 @@ aiRouter.post("/generate", async (req, res) => {
       // },
     });
 
-    const result = await chat.sendMessage(engineerPrompt);
+    const result = await chat.sendMessage(systemInstruction);
     const response = await result.response;
     const responseText = await response.text();
 
