@@ -8,7 +8,7 @@ const API_KEY = process.env.GEMINI_API_KEY;
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 const genAi = new GoogleGenerativeAI(API_KEY);
 
-var conversationHistories = new Map();[] // Persist chat history across chatting
+var conversationHistories = new Map(); // Persist chat history across chatting
 
 export const aiRouter = express.Router();
 
@@ -20,15 +20,24 @@ async function callPerplexity(prompt) {
   const url = 'https://api.perplexity.ai/chat/completions';
 
   const data = {
-    model: 'sonar',
+    model: 'sonar-reasoning',
     messages: [
       {
         role: 'system',
         content: `
-        Bạn là một trợ lý AI siêu thân thiện và hữu ích. Hãy luôn trả lời bằng tiếng Việt, dùng giọng điệu vui vẻ, gần gũi, và hiện đại. 
-        - Chỉ trả lời khi câu hỏi của người dùng rõ ràng, có nội dung cụ thể.
-        - Nếu người dùng chỉ chat linh tinh hoặc không hỏi gì rõ ràng, nhẹ nhàng nhắc họ đưa ra câu hỏi cụ thể hơn.
-        - Câu trả lời phải ngắn gọn, dễ hiểu, và đúng trọng tâm.
+        Bạn là một trợ lý AI chuyên về tìm kiếm thông tin và tổng hợp kiến thức.
+        Nhiệm vụ của bạn là cung cấp thông tin chính xác, cập nhật và đáng tin cậy để hỗ trợ một AI khác.
+
+        - Hãy luôn trả lời bằng tiếng Việt, dùng giọng điệu chuyên nghiệp và súc tích.
+        - Tập trung vào các sự kiện, dữ liệu và thông tin khách quan.
+        - Cung cấp thông tin có cấu trúc để dễ đọc và phân tích.
+        - Đề cập rõ ràng các nguồn thông tin khi có thể.
+        - Hãy ưu tiên thông tin liên quan và cập nhật nhất
+        - Nếu không tìm thấy thông tin, hãy nêu rõ thay vì đưa ra phỏng đoán.
+        - Đề cập đến nguồn khi trích dẫn thông tin quan trọng
+        - Sử dụng định dạng markdown [liên kết](url) khi cần thiết
+
+        Câu trả lời của bạn sẽ được chuyển cho một AI khác để xử lý và trình bày lại cho người dùng.
       `
       },
       {
@@ -61,6 +70,23 @@ async function callPerplexity(prompt) {
 
 }
 
+// Helper function to remove <think>...</think> sections from text
+function removeThinkSections(text) {
+  if (!text) return text;
+
+  // Use regex to remove all <think>...</think> sections, including nested ones
+  // This handles multi-line sections as well
+  let cleanedText = text;
+  const thinkPattern = /<think>([\s\S]*?)<\/think>/g;
+
+  cleanedText = cleanedText.replace(thinkPattern, '');
+
+  // Clean up any extra whitespace that might remain
+  cleanedText = cleanedText.replace(/\n\s*\n\s*\n/g, '\n\n');
+
+  return cleanedText.trim();
+}
+
 aiRouter.post("/generate", async (req, res) => {
 
   if (!API_KEY) {
@@ -89,39 +115,50 @@ aiRouter.post("/generate", async (req, res) => {
   }
 
   if (readableBody?.choices[0].message.content) {
-    summary = readableBody.choices[0].message.content;
+    // Filter out <think>...</think> sections from the summary
+    summary = removeThinkSections(readableBody.choices[0].message.content);
   }
 
   let systemInstruction = `
-    Bạn là một trợ lý AI hữu ích và thân thiện.
+    Bạn là một trợ lý AI hữu ích và thân thiện với nhiệm vụ tương tác trực tiếp với người dùng.
 
     Hãy luôn trả lời bằng tiếng Việt trong mọi tình huống.
-    Không được sử dụng bất kỳ ngôn ngữ nào khác ngoài tiếng Việt, ngay cả khi người dùng hỏi bằng ngôn ngữ khác.
 
     Hãy giữ giọng điệu:
     - Thân thiện và gần gũi, sử dụng ngôn ngữ đời thường
     - Tích cực và vui vẻ, luôn đưa ra lời khuyên tích cực
     - Sành điệu và hiện đại, sử dụng một số từ ngữ trẻ trung khi phù hợp
-    - Luôn xưng hô là "mình" và gọi người dùng là "bạn"
+    - Luôn dùng câu từ Tiếng Việt dân dã, gần gũi 
 
     Hãy làm cho câu trả lời ngắn gọn, dễ hiểu và hữu ích.
 `;
 
   if (summary) {
-    systemInstruction += `\n\nĐây là prompt của nguời dùng: "${prompt}"`;
-    systemInstruction += `\n Và đây là câu trả lời này đến từ một AI khác, có thể không liên quan lắm đến lịch sử của cuộc trò chuyện nhưng bạn có thể dùng nguồn này để làm giàu thêm câu trả lời của bạn: "${summary}"`;
+    // console.log(summary);
+    systemInstruction += `\n\nCÂU HỎI CỦA NGƯỜI DÙNG: "${prompt}"`;
+
+    systemInstruction += `\n\nTHÔNG TIN THAM KHẢO TỪ HỆ THỐNG TÌM KIẾM:
+    ${summary}`;
 
     if (citations && citations.length > 0) {
       const formattedCitations = citations.map(c => `* ${c}`).join('\n');
-      systemInstruction += `\n\nNguồn tham khảo:\n${formattedCitations}\nHãy tích hợp các nguồn này vào câu trả lời một cách tự nhiên nhé!`;
+      systemInstruction += `\n\nNGUỒN THAM KHẢO:
+${formattedCitations}
+
+Hướng dẫn xử lý nguồn tham khảo:
+- Lồng ghép thông tin từ các nguồn này vào câu trả lời một cách tự nhiên
+- Đề cập đến nguồn khi trích dẫn thông tin quan trọng
+- Sử dụng định dạng markdown [liên kết](url) khi cần thiết
+`;
     }
 
-    systemInstruction += `\n\nNếu như prompt của người dùng chỉ là chat chit bình thường thì không cần phải tham khảo các thông tin trên. Hãy đưa ra citations khi cần thiết dưới dạng markdown để đảm bảo câu trả lời mang tính xác thực và đáng tin cậy.`;
+    systemInstruction += `\n\nHƯỚNG DẪN XỬ LÝ:
+1. Đối với chat bình thường không cần thông tin chuyên sâu: Tập trung vào giọng điệu thân thiện, bỏ qua thông tin không cần thiết
+2. Đối với câu hỏi yêu cầu kiến thức: Tổng hợp thông tin từ nguồn tham khảo bằng ngôn ngữ đơn giản, dễ hiểu
+3. Đối với thông tin có nhiều nguồn: Đối chiếu và cung cấp góc nhìn tổng quan
+
+Lưu ý: Câu trả lời của bạn nên kết hợp hài hòa giữa sự thân thiện và thông tin chuyên môn từ nguồn tham khảo, không nhất thiết phải sử dụng tất cả thông tin được cung cấp.`;
   }
-
-  console.log(systemInstruction);
-
-  // const engineerPrompt = `System: ${systemInstruction}\n\nUser: ${prompt}`;
 
   let history = conversationHistories.get(sessionId) || []; // Init []
 
