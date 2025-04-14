@@ -21,7 +21,7 @@ app.use(session({
   secret: process.env.SECRECT_KEY || 'secret',
   resave: false,
   saveUninitialized: true,
-  cookie: { secure: true }
+  cookie: { secure: true } //
 }));
 
 app.use(express.json());

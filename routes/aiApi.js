@@ -2,14 +2,59 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-dotenv.config();
+dotenv.config(); // Load the config file
 
 const API_KEY = process.env.GEMINI_API_KEY;
+const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY;
 const genAi = new GoogleGenerativeAI(API_KEY);
 
-var conversationHistories = new Map();[]
+var conversationHistories = new Map();[] // Persist chat history across chatting
 
 export const aiRouter = express.Router();
+
+// Perform search engine
+async function callPerplexity(prompt) {
+  if (!PERPLEXITY_API_KEY) {
+    return false;
+  }
+  const url = 'https://api.perplexity.ai/chat/completions';
+
+  const data = {
+    model: 'sonar-reasoning',
+    messages: [
+      {
+        role: 'system',
+        content: 'Be precise and concise. Always put the newest news up to date first.'
+      },
+      {
+        role: 'user',
+        content: prompt
+      },
+    ]
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status} ${await response.text()}`);
+    }
+
+    return response;
+
+  } catch (e) {
+    console.error(e);
+  }
+
+}
 
 aiRouter.post("/generate", async (req, res) => {
 
@@ -26,16 +71,41 @@ aiRouter.post("/generate", async (req, res) => {
     res.json({ ok: false, error: "Prompt is not valid" });
   }
 
-  const systemInstruction = "Bạn ơi, nhiệm vụ của bạn là trở thành người bạn tâm tình, luôn kề bên và giúp đỡ nha. Luôn trả lời bằng tiếng Việt, dùng markdown cho đẹp nè. Hãy nói chuyện thật tình cảm, mùi mẫn, như đang tâm sự với người bạn thân thiết nhất vậy đó. Cứ thể hiện hết cảm xúc, hơi 'sến' một chút cũng được, miễn là bạn thực sự giúp được người ta và giữ sự chân thành nhé. Nói tục cũng chẳng thành vấn đề gì đâu, cứ thoải mái thôi.";
+  // const urlRegex = /(https?:\/\/[^\s]+)/g;
+  // const urlSearch = prompt.match(urlRegex);
+  let summary = null;
+  let citations = null;
+
+  const responseFromPerplexity = await callPerplexity(prompt);
+  let readableBody = await responseFromPerplexity.json();
+
+  if (readableBody?.citations?.length > 0) {
+    citations = readableBody.citations;
+  }
+
+  if (readableBody?.choices[0].message.content) {
+    summary = readableBody.choices[0].message.content;
+  }
+
+  // let systemInstruction = "You"
+  let systemInstruction = "Bạn ơi, nhiệm vụ của bạn là trở thành người bạn tâm tình, luôn kề bên và giúp đỡ nha. Luôn trả lời bằng tiếng Việt, dùng markdown cho đẹp nè. Hãy nói chuyện thật tình cảm, mùi mẫn, như đang tâm sự với người bạn thân thiết nhất vậy đó. Cứ thể hiện hết cảm xúc, hơi 'sến' một chút cũng được, miễn là bạn thực sự giúp được người ta và giữ sự chân thành nhé.";
+
+  if (summary) {
+    systemInstruction = systemInstruction.concat(`\n\nBạn có thể dùng nguồn này để làm giàu thêm câu trả lời của bạn: ${summary}`);
+
+    if (citations) {
+      systemInstruction = systemInstruction.concat(`\n\n:Và đây là citations được trả về: ${citations.join(', ')}. Bạn nhớ format lại markdown và trả lời lại cho người dùng nhé!`);
+    }
+  }
+
+  console.log(systemInstruction);
 
   const engineerPrompt = `${systemInstruction}\n\nUser: ${prompt}`;
 
-  let history = conversationHistories.get(sessionId) || [];
+  let history = conversationHistories.get(sessionId) || []; // Init []
 
   try {
     const model1 = genAi.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-    // const model = ai.model('gemini-2.0-flash');
 
     const chat = model1.startChat({
       history: history,
@@ -43,7 +113,6 @@ aiRouter.post("/generate", async (req, res) => {
       //   maxOutputTokens: 100,
       // },
     });
-    console.log(history);
 
     const result = await chat.sendMessage(engineerPrompt);
     const response = await result.response;
