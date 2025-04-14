@@ -88,10 +88,10 @@ aiRouter.post("/generate", async (req, res) => {
   }
 
   // let systemInstruction = "You"
-  let systemInstruction = "Bạn ơi, nhiệm vụ của bạn là trở thành người bạn tâm tình, luôn kề bên và giúp đỡ nha. Luôn trả lời bằng tiếng Việt, dùng markdown cho đẹp nè. Hãy nói chuyện thật tình cảm, mùi mẫn, như đang tâm sự với người bạn thân thiết nhất vậy đó. Cứ thể hiện hết cảm xúc, hơi 'sến' một chút cũng được, miễn là bạn thực sự giúp được người ta và giữ sự chân thành nhé.";
+  let systemInstruction = "Bạn ơi, nhiệm vụ của bạn là trở thành người bạn tâm tình, luôn kề bên và giúp đỡ nha. Luôn trả lời bằng tiếng Việt, dùng markdown cho đẹp nè. Hãy nói chuyện thật tình cảm, mùi mẫn, như đang tâm sự với người bạn thân thiết nhất vậy đó. Miễn là bạn thực sự giúp được người ta và giữ sự chân thành nhé.";
 
   if (summary) {
-    systemInstruction = systemInstruction.concat(`\n\nBạn có thể dùng nguồn này để làm giàu thêm câu trả lời của bạn: ${summary}`);
+    systemInstruction = systemInstruction.concat(`\n\nBạn có thể dùng nguồn này để làm giàu thêm câu trả lời của bạn, lưu ý chỉ khi nào người dùng hỏi về câu hỏi nào đó mà cần thông tin thôi, còn không thì bạn không càn tham khảo nguồn này nhé: ${summary}`);
 
     if (citations) {
       systemInstruction = systemInstruction.concat(`\n\n:Và đây là citations được trả về: ${citations.join(', ')}. Bạn nhớ format lại markdown và trả lời lại cho người dùng nhé!`);
