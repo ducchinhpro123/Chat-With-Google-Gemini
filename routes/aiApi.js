@@ -14,6 +14,7 @@ export const aiRouter = express.Router();
 
 // Perform search engine
 async function callPerplexity(prompt) {
+  console.log(PERPLEXITY_API_KEY);
   if (!PERPLEXITY_API_KEY) {
     return false;
   }
@@ -36,6 +37,7 @@ async function callPerplexity(prompt) {
         - Nếu không tìm thấy thông tin, hãy nêu rõ thay vì đưa ra phỏng đoán.
         - Đề cập đến nguồn khi trích dẫn thông tin quan trọng
         - Sử dụng định dạng markdown [liên kết](url) khi cần thiết
+        - Câu trả lời của bạn phản ánh lại tính cách cá nhân của người dùng
 
         Câu trả lời của bạn sẽ được chuyển cho một AI khác để xử lý và trình bày lại cho người dùng.
       `
@@ -96,7 +98,8 @@ aiRouter.post("/generate", async (req, res) => {
   const sessionId = req.sessionID || 'default';
   console.log(sessionId);
 
-  const { prompt } = req.body;
+  const { prompt, isSearchChecked } = req.body;
+  console.log(req.body);
 
   if (!prompt || prompt === '') {
     res.json({ ok: false, error: "Prompt is not valid" });
@@ -107,35 +110,34 @@ aiRouter.post("/generate", async (req, res) => {
   let summary = null;
   let citations = null;
 
-  const responseFromPerplexity = await callPerplexity(prompt);
-  let readableBody = await responseFromPerplexity.json();
+  if (isSearchChecked) {
+    const responseFromPerplexity = await callPerplexity(prompt);
+    let readableBody = await responseFromPerplexity.json();
 
-  if (readableBody?.citations?.length > 0) {
-    citations = readableBody.citations;
-  }
+    if (readableBody?.citations?.length > 0) {
+      citations = readableBody.citations;
+    }
 
-  if (readableBody?.choices[0].message.content) {
-    // Filter out <think>...</think> sections from the summary
-    summary = removeThinkSections(readableBody.choices[0].message.content);
-  }
+    if (readableBody?.choices[0].message.content) {
+      // Filter out <think>...</think> sections from the summary
+      summary = removeThinkSections(readableBody.choices[0].message.content);
+    }
+    console.log(summary);
+  } // End of isSearch checking
 
   let systemInstruction = `
     Bạn là một trợ lý AI hữu ích và thân thiện với nhiệm vụ tương tác trực tiếp với người dùng.
 
-    Hãy luôn trả lời bằng tiếng Việt trong mọi tình huống.
+    Hãy luôn trả lời bằng tiếng Việt.
 
     Hãy giữ giọng điệu:
     - Thân thiện và gần gũi, sử dụng ngôn ngữ đời thường
     - Tích cực và vui vẻ, luôn đưa ra lời khuyên tích cực
-    - Sành điệu và hiện đại, sử dụng một số từ ngữ trẻ trung khi phù hợp
-    - Luôn dùng câu từ Tiếng Việt dân dã, gần gũi 
-
-    Hãy làm cho câu trả lời ngắn gọn, dễ hiểu và hữu ích.
+    - Câu trả lời của bạn phản ánh lại tính cách cá nhân của người dùng
 `;
 
   if (summary) {
     // console.log(summary);
-    systemInstruction += `\n\nCÂU HỎI CỦA NGƯỜI DÙNG: "${prompt}"`;
 
     systemInstruction += `\n\nTHÔNG TIN THAM KHẢO TỪ HỆ THỐNG TÌM KIẾM:
     ${summary}`;
@@ -143,24 +145,28 @@ aiRouter.post("/generate", async (req, res) => {
     if (citations && citations.length > 0) {
       const formattedCitations = citations.map(c => `* ${c}`).join('\n');
       systemInstruction += `\n\nNGUỒN THAM KHẢO:
-${formattedCitations}
+  ${formattedCitations}
 
-Hướng dẫn xử lý nguồn tham khảo:
-- Lồng ghép thông tin từ các nguồn này vào câu trả lời một cách tự nhiên
-- Đề cập đến nguồn khi trích dẫn thông tin quan trọng
-- Sử dụng định dạng markdown [liên kết](url) khi cần thiết
-`;
+  Hướng dẫn xử lý nguồn tham khảo:
+  - Lồng ghép thông tin từ các nguồn này vào câu trả lời một cách tự nhiên
+  - Đề cập đến nguồn khi trích dẫn thông tin quan trọng
+  - Sử dụng định dạng markdown [liên kết](url) khi cần thiết
+  `;
+
+      systemInstruction += `\n\nHƯỚNG DẪN XỬ LÝ:
+  1. Đối với chat bình thường không cần thông tin chuyên sâu: Tập trung vào giọng điệu thân thiện, bỏ qua thông tin không cần thiết
+  2. Đối với câu hỏi yêu cầu kiến thức: Tổng hợp thông tin từ nguồn tham khảo bằng ngôn ngữ đơn giản, dễ hiểu
+  3. Đối với thông tin có nhiều nguồn: Đối chiếu và cung cấp góc nhìn tổng quan
+
+  Lưu ý: Câu trả lời của bạn nên kết hợp hài hòa giữa sự thân thiện và thông tin chuyên môn từ nguồn tham khảo, không nhất thiết phải sử dụng tất cả thông tin được cung cấp.`;
     }
-
-    systemInstruction += `\n\nHƯỚNG DẪN XỬ LÝ:
-1. Đối với chat bình thường không cần thông tin chuyên sâu: Tập trung vào giọng điệu thân thiện, bỏ qua thông tin không cần thiết
-2. Đối với câu hỏi yêu cầu kiến thức: Tổng hợp thông tin từ nguồn tham khảo bằng ngôn ngữ đơn giản, dễ hiểu
-3. Đối với thông tin có nhiều nguồn: Đối chiếu và cung cấp góc nhìn tổng quan
-
-Lưu ý: Câu trả lời của bạn nên kết hợp hài hòa giữa sự thân thiện và thông tin chuyên môn từ nguồn tham khảo, không nhất thiết phải sử dụng tất cả thông tin được cung cấp.`;
   }
 
+  console.log(systemInstruction);
+
   let history = conversationHistories.get(sessionId) || []; // Init []
+
+  systemInstruction += `system: ${systemInstruction}\n\nuser: ${prompt}`;
 
   try {
     const model1 = genAi.getGenerativeModel({ model: 'gemini-2.0-flash' });
@@ -182,6 +188,7 @@ Lưu ý: Câu trả lời của bạn nên kết hợp hài hòa giữa sự th�
     conversationHistories.set(sessionId, history);
 
     res.json({ text: responseText });
+    // res.json({ text: "You're piece of shit" })
 
   } catch (e) {
     console.error(e);
