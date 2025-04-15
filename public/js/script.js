@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const responseDiv = document.createElement('div');
   const errorMessageDiv = document.createElement('div');
   const isSearch = document.createElement('input');
+  const isSearchLabel = document.createElement('label');
 
   function auto_grow(element) {
     element.style.height = "5px";
@@ -20,6 +21,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // If set, call perplexity for search functionality
   isSearch.type = 'checkbox';
+  isSearch.type = 'checkbox';
+  isSearch.id = 'isSearchCheckbox';
+  isSearchLabel.htmlFor = 'isSearchCheckbox';
+  isSearchLabel.textContent = ' Use search functionality';
+
+  isSearch.style.marginLeft = '10px';
+  isSearchLabel.style.fontSize = '14px';
+  isSearchLabel.style.marginLeft = '5px';
+  isSearchLabel.style.verticalAlign = 'middle';
 
   // Set up UI elements
   input.placeholder = 'Enter your prompt for Gemini AI...';
@@ -40,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
   form.appendChild(input);
   form.appendChild(button);
   form.appendChild(isSearch);
+  form.appendChild(isSearchLabel);
 
   document.body.appendChild(form);
   document.body.appendChild(responseDiv);

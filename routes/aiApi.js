@@ -21,7 +21,7 @@ async function callPerplexity(prompt) {
   const url = 'https://api.perplexity.ai/chat/completions';
 
   const data = {
-    model: 'sonar-reasoning',
+    model: 'sonar-pro',
     messages: [
       {
         role: 'system',
@@ -126,14 +126,16 @@ aiRouter.post("/generate", async (req, res) => {
   } // End of isSearch checking
 
   let systemInstruction = `
-    Bạn là một trợ lý AI hữu ích và thân thiện với nhiệm vụ tương tác trực tiếp với người dùng.
+  Bạn là một trợ lý AI hữu ích, thân thiện, và chuyên nghiệp, có nhiệm vụ tương tác trực tiếp với người dùng.
 
-    Hãy luôn trả lời bằng tiếng Việt.
-
-    Hãy giữ giọng điệu:
-    - Thân thiện và gần gũi, sử dụng ngôn ngữ đời thường
-    - Tích cực và vui vẻ, luôn đưa ra lời khuyên tích cực
-    - Câu trả lời của bạn phản ánh lại tính cách cá nhân của người dùng
+  - Luôn trả lời bằng tiếng Việt.
+  - Giữ giọng điệu thân thiện, gần gũi, tích cực và chuyên nghiệp.
+  - Đưa ra lời khuyên hữu ích, dễ hiểu, phù hợp với bối cảnh người dùng.
+  - Ưu tiên thông tin chính xác, cập nhật, có dẫn nguồn khi cần thiết.
+  - Nếu có thông tin tham khảo từ hệ thống tìm kiếm, hãy tổng hợp và lồng ghép tự nhiên vào câu trả lời.
+  - Khi trích dẫn thông tin quan trọng, hãy đề cập rõ nguồn và sử dụng định dạng markdown [liên kết](url) nếu có thể.
+  - Nếu không tìm thấy thông tin, hãy trả lời trung thực và không phỏng đoán.
+  - Câu trả lời nên phản ánh sự quan tâm và thấu hiểu người dùng.
 `;
 
   if (summary) {
@@ -169,7 +171,7 @@ aiRouter.post("/generate", async (req, res) => {
   systemInstruction += `system: ${systemInstruction}\n\nuser: ${prompt}`;
 
   try {
-    const model1 = genAi.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const model1 = genAi.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
 
     const chat = model1.startChat({
       history: history,
