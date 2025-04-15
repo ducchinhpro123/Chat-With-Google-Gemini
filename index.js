@@ -16,12 +16,15 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const port = process.env.PORT || 3000;
 
+app.set('trust proxy', 1); // trust first proxy
+
 app.use(session({
   secret: process.env.SECRECT_KEY || 'secret',
   resave: false,
   saveUninitialized: true,
   cookie: { secure: true } //
 }));
+
 
 app.use(express.json());
 app.set('views', path.join(__dirname, 'views'));
